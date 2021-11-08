@@ -27,10 +27,11 @@ function create_queue_info_table.safeUp()
     columns["appid"] = db.string(100).comment("应用appid")
     columns["type"] = db.string(20).comment("应用类型(mqtt,amqp,native,redis)")
     columns["consumer_max_num"] = db.integer().default(1).comment("消费协程数量限制")
-    columns["properties"] = db.text().nullable(true).comment("队列配置属性")
+    columns["properties"] = db.text().nullable().comment("队列配置属性")
     columns["comment"] = db.string(100).comment("队列备注信息")
     columns["created_at"] = db.datetime().comment("创建时间")
     columns["updated_at"] = db.datetime().comment("更新时间")
+    -- db.addColumn(self.table,"deleted_at",db.string().nullable().comment("删除时间").after("created_at"))
     -- local comment = string.format("comment(\"%s\")", tableComment)
     db.createTable(self.table, columns, db.comment(tableComment))
     -- 构建索引
@@ -43,6 +44,7 @@ function create_queue_info_table.safeDown()
     local db = self.getDb()
     db.dropTable(self.table)
     -- db.dropIndex(create_queue_info_table.table,"idx_queue")
+    -- db.dropColumn(create_queue_info_table.table,"deleted_at")
 end
 
 return create_queue_info_table

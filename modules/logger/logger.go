@@ -36,7 +36,7 @@ func Create(L *lua.LState) int {
 	}
 	var (
 		logger = NewLogger()
-		table  = L.NewTypeMetatable("logger")
+		table  = L.NewTypeMetatable(Name)
 	)
 	switch len(args) {
 	case 1:

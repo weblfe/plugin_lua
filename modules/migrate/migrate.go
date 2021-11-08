@@ -1,32 +1,40 @@
 package migrate
 
 import (
-	"fmt"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
-	_ "github.com/golang-migrate/migrate/v4/database/mysql"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/golang-migrate/migrate/v4/source/github"
-	lua "github.com/yuin/gopher-lua"
-	"sync"
+		"fmt"
+		"github.com/golang-migrate/migrate/v4"
+		_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
+		_ "github.com/golang-migrate/migrate/v4/database/mysql"
+		_ "github.com/golang-migrate/migrate/v4/database/postgres"
+		_ "github.com/golang-migrate/migrate/v4/source/file"
+		_ "github.com/golang-migrate/migrate/v4/source/github"
+		"github.com/weblfe/plugin_lua/core"
+		lua "github.com/yuin/gopher-lua"
+		"sync"
 )
 
 type (
+
 	LuaMigrateTable struct {
 		loggerName string
 		safe       sync.RWMutex
+		options    map[string]*OptionKv
 		migrate    map[string]*migrate.Migrate
 	}
 
 	LuaMigrateColumn struct {
 		TypeName string
 		Value    string
+		Len      uint
 		Comment  string
 		Check    string
 		Default  string
 	}
 
+	OptionKv struct {
+		Source  string
+		ConnUrl string
+	}
 )
 
 var (
@@ -39,10 +47,28 @@ func NewLuaMigrate() *LuaMigrateTable {
 	return table.init()
 }
 
-func NewColumn(ty string) *LuaMigrateColumn {
-	var column = new(LuaMigrateColumn)
-	column.TypeName = ty
-	return column
+func createMigrate(L *lua.LState) int  {
+		var args = core.GetArgs(L)
+		if len(args) <= 0 {
+				return 0
+		}
+		var (
+				m = NewLuaMigrate()
+				table  = L.NewTypeMetatable(Name)
+		)
+		switch len(args) {
+		case 1:
+
+		case 2:
+
+		case 3:
+
+		}
+		for k, fn := range m.methods() {
+				table.RawSet(lua.LString(k), L.NewFunction(fn))
+		}
+		L.Push(table)
+		return 1
 }
 
 func (c *LuaMigrateColumn) String() string {
@@ -55,31 +81,8 @@ func (l *LuaMigrateTable) init() *LuaMigrateTable {
 
 func (l *LuaMigrateTable) methods() map[string]lua.LGFunction {
 	return map[string]lua.LGFunction{
-		"connection":  l.Connection,
-		"string":      l.String,
-		"tinyint":     l.TinyInt,
-		"integer":     l.Integer,
-		"decimal":     l.Decimal,
-		"text":        l.Text,
-		"char":        l.Char,
-		"pk":          l.Pk,
-		"bigPk":       l.BigPk,
-		"datetime":    l.DateTime,
-		"comment":     l.Comment,
-		"createTable": l.CreateTable,
-		"createIndex": l.CreateIndex,
-		"connDefault": l.ConnDefault,
-		"dropTable":   l.DropTable,
-		"dropIndex":   l.DropIndex,
-		"dropColumn":  l.DropColumn,
-		"batchInsert": l.BatchInsert,
-		"smallint":    l.SmallInt,
-		"float":       l.FloatNumber,
-		"double":      l.DoubleNumber,
-		"bigint":      l.BigInt,
-		"date":        l.Date,
-		"money":       l.Money,
-		"binary":      l.Binary,
+		"new":                createMigrate,
+		"connection":         l.Connection,
 	}
 }
 
@@ -108,6 +111,26 @@ func (l *LuaMigrateTable) BatchInsert(state *lua.LState) int {
 }
 
 func (l *LuaMigrateTable) Integer(state *lua.LState) int {
+	return 0
+}
+
+// AddColumn 添加字段
+func (l *LuaMigrateTable) AddColumn(state *lua.LState) int {
+	return 0
+}
+
+// RenameColumn 重命名字段
+func (l *LuaMigrateTable) RenameColumn(state *lua.LState) int {
+	return 0
+}
+
+// AlterColumn 修改字段类型
+func (l *LuaMigrateTable) AlterColumn(state *lua.LState) int {
+	return 0
+}
+
+// AlterColumnComment 添加字段备注
+func (l *LuaMigrateTable) AlterColumnComment(state *lua.LState) int {
 	return 0
 }
 
