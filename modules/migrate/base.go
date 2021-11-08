@@ -7,5 +7,13 @@ const (
 )
 
 func NewLuaMigrateTables() lua.LGFunction {
-	return nil
+	return func(state *lua.LState) int {
+			var mod lua.LValue
+			if len(Funcs) <= 0 {
+					return 0
+			}
+			mod = state.RegisterModule(Name, Funcs)
+			state.Push(mod)
+			return 1
+	}
 }
