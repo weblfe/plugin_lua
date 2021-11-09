@@ -20,6 +20,9 @@ function create_queue_info_table.safeUp()
     local db = self.getDb()
     -- 备注
     local tableComment = "队列信息记录表"
+    --  for k, v in pairs(db) do
+    --        print(k,v)
+    --  end
     -- columns 表字段定义
     columns["id"] = db.pk().comment("id")
     columns["name"] = db.string(100).comment("队列名")
@@ -31,6 +34,7 @@ function create_queue_info_table.safeUp()
     columns["comment"] = db.string(100).comment("队列备注信息")
     columns["created_at"] = db.datetime().comment("创建时间")
     columns["updated_at"] = db.datetime().comment("更新时间")
+    print(columns["comment"].toString())
     -- db.addColumn(self.table,"deleted_at",db.string().nullable().comment("删除时间").after("created_at"))
     -- local comment = string.format("comment(\"%s\")", tableComment)
     db.createTable(self.table, columns, db.comment(tableComment))

@@ -25,6 +25,6 @@ func init() {
 	}
 }
 
-func GetAll() []*core.LuaRegistryFunction {
+func GetModules() []*core.LuaRegistryFunction {
 	return _modules
 }

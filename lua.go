@@ -21,8 +21,9 @@ type (
 		lvm         *LuaState
 		constructor *sync.Once
 		bootAt      time.Time
-		loader      PluginBootLoader
 		options     *PluginOptions
+		loader      BootLoader
+		cache       map[string]bool
 		extLibs     []*core.LuaRegistryFunction
 	}
 
@@ -31,7 +32,7 @@ type (
 		lua.Options
 	}
 
-	PluginBootLoader func() (*PluginOptions, error)
+	BootLoader func() (*PluginOptions, error)
 )
 
 func NewLua(options ...PluginOptions) *luaPluginImpl {
@@ -79,11 +80,12 @@ func (plugin *luaPluginImpl) init() *luaPluginImpl {
 	if plugin.constructor == nil {
 		plugin.constructor = &sync.Once{}
 	}
+	plugin.cache = make(map[string]bool)
 	runtime.SetFinalizer(plugin, (*luaPluginImpl).destroy)
 	return plugin
 }
 
-func (plugin *luaPluginImpl) SetLoader(loader PluginBootLoader) *luaPluginImpl {
+func (plugin *luaPluginImpl) SetLoader(loader BootLoader) *luaPluginImpl {
 	if loader == nil || !plugin.bootAt.IsZero() {
 		return plugin
 	}
@@ -147,9 +149,7 @@ func (plugin *luaPluginImpl) extend(state *LuaState, extends []core.LuaRegistryF
 		return
 	}
 	for _, lib := range extends {
-		state.Push(state.NewFunction(lib.LFunction))
-		state.Push(lua.LString(lib.LName))
-		state.Call(1, 0)
+		plugin.LoadLib(&lib, plugin.GetLState())
 	}
 }
 
@@ -208,6 +208,25 @@ func (plugin *luaPluginImpl) LoadByIo(reader io.ReadCloser, name string) (*lua.L
 	return plugin.GetVM().Load(reader, name)
 }
 
+func (plugin *luaPluginImpl) LoadLib(lib *core.LuaRegistryFunction, stateVm ...*lua.LState) *luaPluginImpl {
+	if len(stateVm) <= 0 {
+		var lvm = plugin.GetVM().LState
+		stateVm = append(stateVm, &lvm)
+	}
+	if stateVm[0] == nil {
+		return plugin
+	}
+	if _, ok := plugin.cache[lib.LName]; ok {
+		return plugin
+	}
+	var state = stateVm[0]
+	state.Push(state.NewFunction(lib.LFunction))
+	state.Push(lua.LString(lib.LName))
+	state.Call(1, 0)
+	plugin.cache[lib.LName] = true
+	return plugin
+}
+
 func (plugin *luaPluginImpl) destroy() {
 	runtime.SetFinalizer(plugin, nil)
 	if plugin.lvm != nil {
@@ -219,6 +238,6 @@ func (plugin *luaPluginImpl) destroy() {
 }
 
 func CreateExtendsLoader() (*PluginOptions, error) {
-	var opts = &PluginOptions{Extends: modules.GetAll()}
+	var opts = &PluginOptions{Extends: modules.GetModules()}
 	return opts, nil
 }

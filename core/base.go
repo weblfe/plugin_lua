@@ -58,6 +58,12 @@ func (arguments LuaArguments) Len() int {
 	return len(arguments)
 }
 
+func (arguments LuaArguments) Set(v interface{}, index ...int) LuaArguments {
+	index = append(index, 0)
+	arguments[index[0]] = v
+	return arguments
+}
+
 func (arguments LuaArguments) IsEmpty() bool {
 	if arguments == nil || len(arguments) <= 0 {
 		return true
