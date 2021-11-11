@@ -206,8 +206,13 @@ func (c *LuaMigrateColumn) Bytes() []byte {
 	return []byte(c.buildCompleteString(format))
 }
 
+func (c *LuaMigrateColumn) String() string {
+	return string(c.Bytes())
+}
+
 func (c *LuaMigrateColumn) LuaObject(L *lua.LState) lua.LValue {
 	var table = L.NewTypeMetatable("column")
+	table.Metatable = &lua.LUserData{Value: c, Env: L.Env}
 	for k, v := range c.methods() {
 		table.RawSet(lua.LString(k), L.NewClosure(v, table))
 	}
@@ -224,7 +229,7 @@ func (c *LuaMigrateColumn) methods() map[string]lua.LGFunction {
 	return map[string]lua.LGFunction{
 		"null":     c.SetNull,
 		"notNull":  c.SetNotNull,
-		"nullable":  c.SetNull,
+		"nullable": c.SetNull,
 		"size":     c.SetSize,
 		"comment":  c.SetComment,
 		"default":  c.SetDefault,
@@ -359,8 +364,8 @@ func (c *LuaMigrateColumn) buildUnsignedString() string {
 	return ""
 }
 
-func (c *LuaMigrateColumn)GetCategoryMap() map[ColumnType]string  {
-		return categoryMap
+func (c *LuaMigrateColumn) GetCategoryMap() map[ColumnType]string {
+	return categoryMap
 }
 
 func (c *LuaMigrateColumn) buildNotNullString() string {
@@ -378,21 +383,21 @@ func (c *LuaMigrateColumn) buildUniqueString() string {
 }
 
 func (c *LuaMigrateColumn) buildDefaultString() string {
-		var defaultValue = c.buildDefaultValue()
-		if defaultValue == "" {
-				return ""
-		}
-		return fmt.Sprintf(` DEFAULT %s` ,defaultValue)
+	var defaultValue = c.buildDefaultValue()
+	if defaultValue == "" {
+		return ""
+	}
+	return fmt.Sprintf(` DEFAULT %s`, defaultValue)
 }
 
-func (c *LuaMigrateColumn)buildDefaultValue() string  {
-		if c.Default == "" {
-				if !c.isNotNull {
-						return "NULL"
-				}
-				return ""
+func (c *LuaMigrateColumn) buildDefaultValue() string {
+	if c.Default == "" {
+		if !c.isNotNull {
+			return "NULL"
 		}
-		return c.Default
+		return ""
+	}
+	return c.Default
 }
 
 func (c *LuaMigrateColumn) buildCheckString() string {

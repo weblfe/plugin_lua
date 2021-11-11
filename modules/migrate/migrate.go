@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
@@ -34,7 +35,7 @@ type (
 		Type       ColumnType
 		Value      string
 		Len        []int
-		length    string
+		length     string
 		Comment    string
 		Check      string
 		Default    string
@@ -44,10 +45,15 @@ type (
 		isUnsigned bool
 		isNotNull  bool
 		isUnique   bool
-		opt     *OptionKv
+		opt        *OptionKv
 	}
 
-	ColumnMap map[string]interface{}
+	ColumnMap []*Column
+
+	Column struct {
+		Name    string
+		RawBody fmt.Stringer
+	}
 )
 
 var (
@@ -84,8 +90,15 @@ func createMigrate(L *lua.LState) int {
 	return 1
 }
 
-func (c *LuaMigrateColumn) String() string {
-	return fmt.Sprintf("")
+func (c *Column) Body() string {
+	if c.RawBody != nil {
+		return c.RawBody.String()
+	}
+	return ""
+}
+
+func (c *Column) Key() string {
+	return c.Name
 }
 
 func (l *LuaMigrateTable) init() *LuaMigrateTable {
@@ -225,33 +238,73 @@ func (l *LuaMigrateTable) CreateTable(state *lua.LState) int {
 		args = core.GetArgs(state)
 		argc = args.Len()
 	)
-	if argc <= 0 {
+	if argc < 2 {
+		// @todo lua error
+		logrus.Error("createTable require less 2 params ")
 		return 0
 	}
-	switch argc {
-	case 2:
-	case 3:
-
+	var (
+		tableName  = args.GetString(0)        // table
+		obj        = args.GetTable(1)         // columns
+		reader     = state.GetGlobal(GBuffer) // buffer
+		appendSql  = args.GetString(2)        // append
+		columnsMap = CreateColumnMapByTable(obj)
+	)
+	// 执行sql 解析逻辑
+	switch reader.Type() {
+	case lua.LTNil:
+		logrus.Error("global sql buffer is nil")
+		return 0
+	case lua.LTUserData:
+		var sql = l.createTable(tableName, columnsMap, appendSql)
+		if u, ok := reader.(*lua.LUserData); ok {
+			if buffer, ok := u.Value.(*bytes.Buffer); ok {
+				buffer.Write([]byte(sql))
+				return 1
+			}
+		}
 	}
 	return 0
 }
 
-func (l *LuaMigrateTable) createTable(table string, columns ColumnMap, append ...string) bool {
-	var db = l.getDb()
-
-	if err := db.Up(); err != nil {
-		l.getLogger().Errorln("createTable.Error:", err)
-		return false
+// createTable 构造创建表 command sql
+func (l *LuaMigrateTable) createTable(table string, columns ColumnMap, append ...string) string {
+	var (
+		size      = len(columns)
+		db        = l.getDbOption()
+		realTable = db.quoteTableName(table)
+		buffer    = bytes.NewBufferString(fmt.Sprintf(`CREATE TABLE %s`, realTable))
+	)
+	if columns == nil {
+		return ""
 	}
-	return true
+	for i, column := range columns {
+		var sql = `%s %s`
+		if i < size-1 {
+			sql = sql + `,\n`
+		} else {
+			sql = sql + `\n`
+		}
+		buffer.Write([]byte(fmt.Sprintf(`%s %s \n`, column.Key(), column.Body())))
+	}
+	if len(append) > 0 {
+		for _, v := range append {
+			if v == "" {
+				continue
+			}
+			buffer.Write([]byte(v))
+		}
+	}
+	buffer.Write([]byte(`;`))
+	return buffer.String()
 }
 
 func (l *LuaMigrateTable) getLogger() *logrus.Logger {
 	return logrus.New()
 }
 
-func (l *LuaMigrateTable) getDb() *migrate.Migrate {
-	if m, ok := l.migrate[l.getArgOr("db", l.getConnName())]; ok {
+func (l *LuaMigrateTable) getDbOption() *OptionKv {
+	if m, ok := l.options[l.getArgOr("db", l.getConnName())]; ok {
 		return m
 	}
 	return nil
@@ -306,4 +359,48 @@ func (l *LuaMigrateTable) DropColumn(state *lua.LState) int {
 
 func (l *LuaMigrateTable) CreateIndex(state *lua.LState) int {
 	return 0
+}
+
+func CreateColumnMapByTable(t *lua.LTable) ColumnMap {
+	if t == nil {
+		return nil
+	}
+	var cMap []*Column
+	// 取出column
+	t.ForEach(func(key lua.LValue, v lua.LValue) {
+		if key == nil || v == nil {
+			return
+		}
+		var c *Column
+		if s, ok := key.(lua.LString); ok && s != "" {
+			c = NewColumn(string(s), v)
+		}
+		if c != nil {
+			cMap = append(cMap, c)
+		}
+	})
+	return cMap
+}
+
+func NewColumn(key string, v lua.LValue) *Column {
+	if v == nil || key == "" {
+		return nil
+	}
+	if m, ok := v.(*lua.LTable); ok {
+		var ref = m.Metatable
+		if ref == nil {
+			return nil
+		}
+		u, ok := ref.(*lua.LUserData)
+		if !ok || u.Value == nil {
+			return nil
+		}
+		if body, ok := u.Value.(fmt.Stringer); ok {
+			return &Column{
+				Name:    key,
+				RawBody: body,
+			}
+		}
+	}
+	return nil
 }
