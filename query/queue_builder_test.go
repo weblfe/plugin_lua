@@ -8,9 +8,7 @@ import (
 func TestCommandQueryBuilder_CreateIndex(t *testing.T) {
 	var (
 		command = NewCommandBuilder()
-		columns = []string{
-			"name", "state",
-		}
+		columns = NewArrayAble([]string{"name", "state"})
 		table = "{{%test}}"
 		name  = "uq_test"
 	)
@@ -68,4 +66,16 @@ func TestRegexpMatches(t *testing.T) {
 	for i, match := range matches {
 		fmt.Println("match item: ", i, "=>", match)
 	}
+}
+
+func TestRegexpSplit(t *testing.T) {
+		var (
+			pattern = `/\s*,\s*/`
+			columns = `name,id,state`
+		  arr = RegexpSplit(pattern,columns,-1,RegexpSplitDelimCapture)
+		)
+		if len(arr) <= 0 {
+				t.Error(`分隔异常失败`)
+		}
+		fmt.Println(arr.Len(),arr.Include(`id`),arr.Index(`name`),arr.String())
 }

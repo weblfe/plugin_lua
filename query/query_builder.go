@@ -29,14 +29,95 @@ func (builder *CommandQueryBuilder) init() *CommandQueryBuilder {
 	return builder
 }
 
+//BatchInsert public function batchInsert($table, $columns, $rows, &$params = [])
+//    {
+//        if (empty($rows)) {
+//            return '';
+//        }
+//
+//        $schema = $this->db->getSchema();
+//        if (($tableSchema = $schema->getTableSchema($table)) !== null) {
+//            $columnSchemas = $tableSchema->columns;
+//        } else {
+//            $columnSchemas = [];
+//        }
+//
+//        $values = [];
+//        foreach ($rows as $row) {
+//            $vs = [];
+//            foreach ($row as $i => $value) {
+//                if (isset($columns[$i], $columnSchemas[$columns[$i]])) {
+//                    $value = $columnSchemas[$columns[$i]]->dbTypecast($value);
+//                }
+//                if (is_string($value)) {
+//                    $value = $schema->quoteValue($value);
+//                } elseif (is_float($value)) {
+//                    // ensure type cast always has . as decimal separator in all locales
+//                    $value = StringHelper::floatToString($value);
+//                } elseif ($value === false) {
+//                    $value = 0;
+//                } elseif ($value === null) {
+//                    $value = 'NULL';
+//                } elseif ($value instanceof ExpressionInterface) {
+//                    $value = $this->buildExpression($value, $params);
+//                }
+//                $vs[] = $value;
+//            }
+//            $values[] = '(' . implode(', ', $vs) . ')';
+//        }
+//        if (empty($values)) {
+//            return '';
+//        }
+//
+//        foreach ($columns as $i => $name) {
+//            $columns[$i] = $schema->quoteColumnName($name);
+//        }
+//
+//        return 'INSERT INTO ' . $schema->quoteTableName($table)
+//            . ' (' . implode(', ', $columns) . ') VALUES ' . implode(', ', $values);
+//    }
+func (builder *CommandQueryBuilder) BatchInsert(table string, columns, rows ArrayAble, params ...ArrayAble) string {
+		if rows.Empty() {
+				return ""
+		}
+		var (
+				buffer = bytes.NewBufferString(`INSERT INTO `)
+		)
+		buffer.WriteString(builder.quoteTableName(table))
+		buffer.WriteString(` (`+strings.Join(columns.Array(),",")+`) VALUES `)
+		buffer.WriteString(builder.quoteAny(columns, builder.quoteColumnName) + `)`)
+		return buffer.String()
+}
+
+// AddUnique public function addUnique($name, $table, $columns)
+func (builder *CommandQueryBuilder) AddUnique(name, table string, columns ArrayAble) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table) + ` ADD CONSTRAINT `)
+	buffer.WriteString(builder.quoteColumnName(name) + ` UNIQUE (`)
+	buffer.WriteString(builder.quoteAny(columns, builder.quoteColumnName) + `)`)
+	return buffer.String()
+}
+
+// DropUnique public function dropUnique($name, $table)
+func (builder *CommandQueryBuilder) DropUnique(name, table string) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` DROP CONSTRAINT ` + builder.quoteColumnName(name))
+	return buffer.String()
+}
+
 // AddCheck public function addCheck($name, $table, $expression)
 func (builder *CommandQueryBuilder) AddCheck(name, table string, expression fmt.Stringer) string {
 	var (
 		buffer = bytes.NewBufferString(`ALTER TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table) + ` ADD CONSTRAINT `))
-	buffer.Write([]byte(builder.quoteColumnName(name)))
-	buffer.Write([]byte(` CHECK (` + builder.quoteSql(expression.String()) + `)`))
+	buffer.WriteString(builder.quoteTableName(table) + ` ADD CONSTRAINT `)
+	buffer.WriteString(builder.quoteColumnName(name))
+	buffer.WriteString(` CHECK (` + builder.quoteSql(expression.String()) + `)`)
 	return buffer.String()
 }
 
@@ -45,13 +126,13 @@ func (builder *CommandQueryBuilder) DropCheck(name, table string) string {
 	var (
 		buffer = bytes.NewBufferString(`ALTER TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table)))
-	buffer.Write([]byte(` DROP CONSTRAINT ` + builder.quoteColumnName(name)))
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` DROP CONSTRAINT ` + builder.quoteColumnName(name))
 	return buffer.String()
 }
 
 // CreateIndex public function createIndex(name, table, columns, unique)
-func (builder *CommandQueryBuilder) CreateIndex(name, table string, columns interface{}, unique ...bool) string {
+func (builder *CommandQueryBuilder) CreateIndex(name, table string, columns ArrayAble, unique ...bool) string {
 	if len(unique) <= 0 {
 		unique = append(unique, false)
 	}
@@ -60,13 +141,13 @@ func (builder *CommandQueryBuilder) CreateIndex(name, table string, columns inte
 		buffer = bytes.NewBufferString(``)
 	)
 	if !u {
-		buffer.Write([]byte(`CREATE INDEX `))
+		buffer.WriteString(`CREATE INDEX `)
 	} else {
-		buffer.Write([]byte(`CREATE UNIQUE INDEX `))
+		buffer.WriteString(`CREATE UNIQUE INDEX `)
 	}
-	buffer.Write([]byte(builder.quoteTableName(name) + ` ON `))
-	buffer.Write([]byte(builder.quoteTableName(table)))
-	buffer.Write([]byte(fmt.Sprintf(` (%s)`, builder.buildColumns(columns))))
+	buffer.WriteString(builder.quoteTableName(name) + ` ON `)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(fmt.Sprintf(` (%s)`, builder.buildColumns(columns)))
 	return buffer.String()
 }
 
@@ -75,8 +156,8 @@ func (builder *CommandQueryBuilder) DropIndex(name, table string) string {
 	var (
 		buffer = bytes.NewBufferString(`DROP INDEX `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(name) + ` ON `))
-	buffer.Write([]byte(builder.quoteTableName(table)))
+	buffer.WriteString(builder.quoteTableName(name) + ` ON `)
+	buffer.WriteString(builder.quoteTableName(table))
 	return buffer.String()
 }
 
@@ -89,16 +170,16 @@ func (builder *CommandQueryBuilder) AddForeignKey(name, table string, columns in
 		opt    = extras[0]
 		buffer = bytes.NewBufferString(`ALTER TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table)))
-	buffer.Write([]byte(` ADD CONSTRAINT ` + builder.quoteTableName(name)))
-	buffer.Write([]byte(` FOREIGN KEY (` + builder.buildColumns(columns)))
-	buffer.Write([]byte(` REFERENCES ` + builder.quoteTableName(refTable)))
-	buffer.Write([]byte(` (` + builder.buildColumns(refColumns)))
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` ADD CONSTRAINT ` + builder.quoteTableName(name))
+	buffer.WriteString(` FOREIGN KEY (` + builder.buildColumns(columns))
+	buffer.WriteString(` REFERENCES ` + builder.quoteTableName(refTable))
+	buffer.WriteString(` (` + builder.buildColumns(refColumns))
 	if opt.NotEmpty(`delete`) {
-		buffer.Write([]byte(` ON DELETE ` + opt.Str(`delete`)))
+		buffer.WriteString(` ON DELETE ` + opt.Str(`delete`))
 	}
 	if opt.NotEmpty(`update`) {
-		buffer.Write([]byte(` ON UPDATE ` + opt.Str(`update`)))
+		buffer.WriteString(` ON UPDATE ` + opt.Str(`update`))
 	}
 	return buffer.String()
 }
@@ -108,20 +189,135 @@ func (builder *CommandQueryBuilder) DropForeignKey(name, table string) string {
 	var (
 		buffer = bytes.NewBufferString(`ALTER TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table)))
-	buffer.Write([]byte(` DROP CONSTRAINT ` + builder.quoteTableName(name)))
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` DROP CONSTRAINT ` + builder.quoteTableName(name))
+	return buffer.String()
+}
+
+//Delete public function delete($table, $condition, &$params)
+func (builder *CommandQueryBuilder) Delete(table string, condition ArrayAble, params ArrayAble) string {
+	var (
+		buffer = bytes.NewBufferString(`DELETE FROM `)
+		where  = builder.buildWhere(condition, params)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	if where != "" {
+		buffer.WriteString(` ` + where)
+	}
+	return buffer.String()
+}
+
+//CreateTable public function createTable($table, $columns, $options = null)
+func (builder *CommandQueryBuilder) CreateTable(table string, columns ArrayAble, options ...string) string {
+	var (
+		cols   []string
+		buffer = bytes.NewBufferString(`CREATE TABLE `)
+	)
+	for _, kv := range columns.Kvs() {
+		if !kv.IsString() {
+			cols = append(cols, kv.String())
+		} else {
+			cols = append(cols, builder.quoteColumnName(kv.Key())+` `+builder.GetColumnType(kv.Value()))
+		}
+	}
+	buffer.WriteString(builder.quoteTableName(table) + ` (\n`)
+	buffer.WriteString(strings.Join(cols, `,\n`) + `\n)`)
+	if len(options) > 0 && options[0] != "" {
+		buffer.WriteString(` ` + options[0])
+	}
+	return buffer.String()
+}
+
+//RenameTable public function renameTable($oldName, $newName)
+func (builder *CommandQueryBuilder) RenameTable(table, newName string) string {
+	var (
+		buffer = bytes.NewBufferString(`RENAME TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` TO ` + builder.quoteTableName(newName))
+	return buffer.String()
+}
+
+// DropTable  public function dropTable($table)
+func (builder *CommandQueryBuilder) DropTable(table string) string {
+	var (
+		buffer = bytes.NewBufferString(`DROP TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	return buffer.String()
+}
+
+// AddPrimaryKey public function addPrimaryKey($name, $table, $columns)
+func (builder *CommandQueryBuilder) AddPrimaryKey(name, table string, columns ArrayAble) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table) + ` ADD CONSTRAINT `)
+	buffer.WriteString(builder.quoteColumnName(name) + ` PRIMARY KEY (`)
+	buffer.WriteString(builder.quoteAny(columns, builder.quoteColumnName) + `)`)
+	return buffer.String()
+}
+
+// DropPrimaryKey public function DropPrimaryKey($name, $table)
+func (builder *CommandQueryBuilder) DropPrimaryKey(name, table string) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` DROP CONSTRAINT ` + builder.quoteColumnName(name))
+	return buffer.String()
+}
+
+//TruncateTable public function truncateTable($table)
+func (builder *CommandQueryBuilder) TruncateTable(table string) string {
+	var (
+		buffer = bytes.NewBufferString(`TRUNCATE TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	return buffer.String()
+}
+
+// AddColumn public function addColumn($table, $column, $type)
+func (builder *CommandQueryBuilder) AddColumn(table, column string, typeName fmt.Stringer) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` ADD ` + builder.quoteColumnName(column))
+	buffer.WriteString(builder.GetColumnType(typeName))
+	return buffer.String()
+}
+
+//DropColumn public function dropColumn($table, $column)
+func (builder *CommandQueryBuilder) DropColumn(table, column string) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` DROP COLUMN ` + builder.quoteColumnName(column))
+	return buffer.String()
+}
+
+// RenameColumn public function renameColumn($table, $oldName, $newName)
+func (builder *CommandQueryBuilder) RenameColumn(table, oldName, newName string) string {
+	var (
+		buffer = bytes.NewBufferString(`ALTER TABLE `)
+	)
+	buffer.WriteString(builder.quoteTableName(table))
+	buffer.WriteString(` RENAME COLUMN ` + builder.quoteColumnName(oldName))
+	buffer.WriteString(` TO ` + builder.quoteColumnName(newName))
 	return buffer.String()
 }
 
 // AlterColumn public function alterColumn($table, $column, $type)
-func (builder *CommandQueryBuilder) AlterColumn(table, column string, T fmt.Stringer) string {
+func (builder *CommandQueryBuilder) AlterColumn(table, column string, typeName fmt.Stringer) string {
 	var (
 		buffer = bytes.NewBufferString(`ALTER TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table) + ` CHANGE `))
-	buffer.Write([]byte(builder.quoteColumnName(column) + ` `))
-	buffer.Write([]byte(builder.quoteColumnName(column) + ` `))
-	buffer.Write([]byte(builder.GetColumnType(T)))
+	buffer.WriteString(builder.quoteTableName(table) + ` CHANGE `)
+	buffer.WriteString(builder.quoteColumnName(column) + ` `)
+	buffer.WriteString(builder.quoteColumnName(column) + ` `)
+	buffer.WriteString(builder.GetColumnType(typeName))
 	return buffer.String()
 }
 
@@ -130,9 +326,9 @@ func (builder *CommandQueryBuilder) AddCommentOnColumn(table, column, comment st
 	var (
 		buffer = bytes.NewBufferString(`COMMENT ON COLUMN `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table) + `.`))
-	buffer.Write([]byte(builder.quoteColumnName(column) + ` IS `))
-	buffer.Write([]byte(builder.quoteValue(comment)))
+	buffer.WriteString(builder.quoteTableName(table) + `.`)
+	buffer.WriteString(builder.quoteColumnName(column) + ` IS `)
+	buffer.WriteString(builder.quoteValue(comment))
 	return buffer.String()
 }
 
@@ -141,8 +337,8 @@ func (builder *CommandQueryBuilder) AddCommentOnTable(table, comment string) str
 	var (
 		buffer = bytes.NewBufferString(`COMMENT ON TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table) + ` IS `))
-	buffer.Write([]byte(builder.quoteValue(comment)))
+	buffer.WriteString(builder.quoteTableName(table) + ` IS `)
+	buffer.WriteString(builder.quoteValue(comment))
 	return buffer.String()
 }
 
@@ -151,7 +347,7 @@ func (builder *CommandQueryBuilder) DropCommentFromTable(table string) string {
 	var (
 		buffer = bytes.NewBufferString(`COMMENT ON TABLE `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table) + ` IS NULL`))
+	buffer.WriteString(builder.quoteTableName(table) + ` IS NULL`)
 	return buffer.String()
 }
 
@@ -160,9 +356,72 @@ func (builder *CommandQueryBuilder) DropCommentFromColumn(table, column string) 
 	var (
 		buffer = bytes.NewBufferString(`COMMENT ON COLUMN `)
 	)
-	buffer.Write([]byte(builder.quoteTableName(table) + `.`))
-	buffer.Write([]byte(builder.quoteColumnName(column) + ` IS NULL`))
+	buffer.WriteString(builder.quoteTableName(table) + `.`)
+	buffer.WriteString(builder.quoteColumnName(column) + ` IS NULL`)
 	return buffer.String()
+}
+
+func (builder *CommandQueryBuilder) buildWhere(condition, params ArrayAble) string {
+	var where = builder.buildCondition(condition, params)
+	if where == "" {
+		return ``
+	}
+	return `WHERE ` + where
+}
+
+func (builder *CommandQueryBuilder) buildCondition(condition, params ArrayAble) string {
+	if condition == nil {
+		return ``
+	}
+	var (
+		arr  = condition.Array()
+		cond = condition.String()
+	)
+	if cond == "" && len(arr) == 0 {
+		return ""
+	}
+	if cond != "" && len(arr) == 1 {
+		return cond
+	}
+	var conditionExpress = builder.createConditionFromArray(condition)
+	switch conditionExpress.(type) {
+	case string:
+		return conditionExpress.(string)
+	case ExpressionInterface:
+		var express = conditionExpress.(ExpressionInterface)
+		return builder.buildExpression(express, params)
+	case fmt.Stringer:
+		return conditionExpress.(fmt.Stringer).String()
+	case fmt.GoStringer:
+		return conditionExpress.(fmt.GoStringer).GoString()
+	}
+	return ``
+}
+
+func (builder *CommandQueryBuilder) createConditionFromArray(condition ArrayAble) interface{} {
+  //@todo
+	return nil
+}
+
+func (builder *CommandQueryBuilder) getExpressionBuilder(express ExpressionInterface) ExpressionBuilderInterface {
+	if express == nil {
+		return nil
+	}
+	return GetExpressBuilder(express.GetClass())
+}
+
+func (builder *CommandQueryBuilder) buildExpression(express ExpressionInterface, param ArrayAble) string {
+	if express == nil {
+		return ``
+	}
+	if param == nil {
+		return express.String()
+	}
+	var b = builder.getExpressionBuilder(express)
+	if b != nil {
+		return b.Build(express, param)
+	}
+	return express.String()
 }
 
 func (builder *CommandQueryBuilder) quoteTableName(name string) string {
@@ -286,6 +545,20 @@ func (builder *CommandQueryBuilder) quoteAny(value interface{}, quoteTransform f
 			return strings.Join(arr, ",")
 		}
 		return str
+	case ArrayAble:
+		var (
+			all []string
+			arr = value.(ArrayAble)
+		)
+		for _, v := range arr.Array() {
+			if v == "" {
+				continue
+			}
+			all = append(all, quoteTransform(v))
+		}
+		if len(all) > 0 {
+			return strings.Join(all, ",")
+		}
 	case []string:
 		var (
 			all []string

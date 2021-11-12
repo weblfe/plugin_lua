@@ -11,6 +11,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/github"
 	"github.com/sirupsen/logrus"
 	"github.com/weblfe/plugin_lua/core"
+	"github.com/weblfe/plugin_lua/query"
 	lua "github.com/yuin/gopher-lua"
 	"sort"
 	"sync"
@@ -77,15 +78,17 @@ func createMigrate(L *lua.LState) int {
 	)
 	switch len(args) {
 	case 1:
-
 	case 2:
-
 	case 3:
-
+	}
+	table.Metatable = &lua.LUserData{
+		Value: m,
+		Env:   L.Env,
 	}
 	for k, fn := range m.methods() {
 		table.RawSet(lua.LString(k), L.NewFunction(fn))
 	}
+
 	L.Push(table)
 	return 1
 }
@@ -99,6 +102,18 @@ func (c *Column) Body() string {
 
 func (c *Column) Key() string {
 	return c.Name
+}
+
+func (c *Column) Value() fmt.Stringer {
+	return query.NewString(c.Body())
+}
+
+func (c *Column) String() string {
+	return fmt.Sprintf(`%s %s`, c.Key(), c.Value())
+}
+
+func (c *Column) IsString() bool {
+	return false
 }
 
 func (l *LuaMigrateTable) init() *LuaMigrateTable {
