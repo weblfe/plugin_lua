@@ -21,9 +21,9 @@ func NewStringerAny(v reflect.Value) *StringerAny {
 }
 
 func NewStringerT(v interface{}) *StringerAny {
-		var stringer = new(StringerAny)
-		stringer.row = reflect.ValueOf(v)
-		return stringer
+	var stringer = new(StringerAny)
+	stringer.row = reflect.ValueOf(v)
+	return stringer
 }
 
 func (any *StringerAny) String() string {
@@ -60,17 +60,22 @@ func (any *StringerAny) String() string {
 	case reflect.Complex64, reflect.Complex128:
 		any.body = fmt.Sprintf("%v", v.Interface())
 	case reflect.Chan:
-		any.body = fmt.Sprintf("Chan<%p>", v.Interface())
+		var tv = v.Interface()
+		any.body = fmt.Sprintf("Chan<%T:%p>", tv, tv)
 	case reflect.Map, reflect.Struct, reflect.Array, reflect.Slice:
 		if bytes, err := json.Marshal(v.Interface()); err == nil {
 			any.body = string(bytes)
+		} else {
+			var tv = v.Interface()
+			any.body = fmt.Sprintf("%s<%T:%p>", kind.String(), tv, tv)
 		}
 	case reflect.Bool:
 		any.body = fmt.Sprintf("%v", v.Bool())
 	case reflect.Func:
-		any.body = fmt.Sprintf("func<%p>", v.Interface())
+		var tv = v.Interface()
+		any.body = fmt.Sprintf("Func<%T:%p>", tv, tv)
 	case reflect.Uintptr, reflect.UnsafePointer:
-		any.body = fmt.Sprintf("%p", v.Interface())
+		any.body = fmt.Sprintf("Pointer<%p>", v.Interface())
 	case reflect.Int, reflect.Int8, reflect.Int16,
 		reflect.Int32, reflect.Int64, reflect.Uint,
 		reflect.Uint8, reflect.Uint16, reflect.Uint32,
@@ -87,21 +92,38 @@ func (any *StringerAny) IsDigit() bool {
 	}
 	for _, v := range []rune(str) {
 		if !unicode.IsDigit(v) {
-				return false
+			return false
 		}
 	}
 	return true
 }
 
 func (any *StringerAny) IsNumber() bool {
-		var str = any.String()
-		if str == "" {
-				return false
+	var str = any.String()
+	if str == "" {
+		return false
+	}
+	for _, v := range []rune(str) {
+		if !unicode.IsNumber(v) {
+			return false
 		}
-		for _, v := range []rune(str) {
-				if !unicode.IsNumber(v) {
-						return false
-				}
-		}
-		return true
+	}
+	return true
+}
+
+func NewStringArr(arr []string) []fmt.Stringer {
+	var lists []fmt.Stringer
+	for _, v := range arr {
+		lists = append(lists, NewString(v))
+	}
+	return lists
+}
+
+func NewStringArrT(arr []interface{}) []fmt.Stringer {
+	var lists []fmt.Stringer
+	for _, v := range arr {
+		var it = NewStringerT(v)
+		lists = append(lists, it)
+	}
+	return lists
 }

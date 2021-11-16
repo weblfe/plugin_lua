@@ -214,11 +214,20 @@ func (l *LuaMigrateTable) Comment(state *lua.LState) int {
 }
 
 func (l *LuaMigrateTable) ConnDefault(state *lua.LState) int {
-	var conn = l.getConnName()
-	state.Push(lua.LString(conn))
+	var (
+		args = core.GetArgs(state)
+		conn = l.getConnName()
+	)
 	if conn == "" {
+		if args.Len() > 0 {
+			conn = args.GetString(0)
+			state.Push(lua.LString(conn))
+			return 1
+		}
+		state.Push(lua.LString(``))
 		return 0
 	}
+	state.Push(lua.LString(conn))
 	return 1
 }
 

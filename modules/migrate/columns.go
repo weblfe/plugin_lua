@@ -211,7 +211,7 @@ func (c *LuaMigrateColumn) String() string {
 }
 
 func (c *LuaMigrateColumn) LuaObject(L *lua.LState) lua.LValue {
-	var table = L.NewTypeMetatable("column")
+	var table = L.NewTable()
 	table.Metatable = &lua.LUserData{Value: c, Env: L.Env}
 	for k, v := range c.methods() {
 		table.RawSet(lua.LString(k), L.NewClosure(v, table))

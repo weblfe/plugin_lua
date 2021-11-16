@@ -17,6 +17,14 @@ func (t *Tuple) First() interface{} {
 	return nil
 }
 
+func (t *Tuple) Last() interface{} {
+	var size = len(t.values)
+	if size > 0 {
+		return t.values[size-1]
+	}
+	return nil
+}
+
 func (t *Tuple) Get(i int) interface{} {
 	var size = t.Len()
 	if size > 0 && i < size {

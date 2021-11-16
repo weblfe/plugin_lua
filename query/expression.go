@@ -8,6 +8,7 @@ import (
 )
 
 type (
+
 	ExpressionInterface interface {
 		fmt.Stringer
 		GetClass() string
@@ -20,7 +21,7 @@ type (
 
 	ArrayExpress struct {
 		className string
-		values    []interface{}
+		values    []fmt.Stringer
 	}
 
 	ArrayExpressBuilder struct {
@@ -82,15 +83,26 @@ func (c *expressBuilderContainer) Register(express ExpressionBuilderInterface) b
 	return true
 }
 
-func NewArrayExpress(value []interface{}) *ArrayExpress {
+func NewArrayExpress(value []fmt.Stringer) *ArrayExpress {
 	var express = new(ArrayExpress)
 	express.values = value
-	express.className = `Mysql::ArrayExpress`
+	express.className = fmt.Sprintf(`%s::ArrayExpress`, DriverType)
 	return express
 }
 
 func (express *ArrayExpress) GetClass() string {
 	return express.className
+}
+
+func (express *ArrayExpress) Binds(values []string) *ArrayExpress {
+	if express != nil {
+		if len(express.values) <= 0 {
+			express.values = NewStringArr(values)
+		} else {
+			express.values = append(express.values, NewStringArr(values)...)
+		}
+	}
+	return express
 }
 
 func (express *ArrayExpress) String() string {
@@ -108,9 +120,14 @@ func (express *ArrayExpressBuilder) Build(expression ExpressionInterface, arr Ar
 	}
 	if expr, isArrExpr := expression.(*ArrayExpress); isArrExpr {
 		_ = expr.values[0]
-		for _, it := range arr.Kvs() {
-			_ = it
+		if arr.Empty() {
+			return expr.String()
 		}
+		var args []string
+		for _, v := range arr.Array() {
+			args = append(args, v)
+		}
+		return expr.Binds(args).String()
 	}
 	return ``
 }
