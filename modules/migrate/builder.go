@@ -52,14 +52,16 @@ func (builder *LuaSchemaBuilder) init() *LuaSchemaBuilder {
 
 func (builder *LuaSchemaBuilder) loads() map[string]lua.LGFunction {
 	return map[string]lua.LGFunction{
-		"string":             builder.String,
+		"string":             builder.Str,
 		"tinyint":            builder.TinyInt,
 		"integer":            builder.Integer,
 		"decimal":            builder.Decimal,
 		"text":               builder.Text,
 		"char":               builder.Char,
 		"pk":                 builder.Pk,
-		"bigPk":              builder.BigPk,
+		"upk":                builder.UPk,
+		"bigpk":              builder.BigPk,
+		"ubigpk":             builder.UBigPk,
 		"datetime":           builder.DateTime,
 		"comment":            builder.Comment,
 		"smallint":           builder.SmallInt,
@@ -120,7 +122,7 @@ func (builder *LuaSchemaBuilder) Module(L *lua.LState) lua.LValue {
 	return table
 }
 
-func (builder *LuaSchemaBuilder) String(L *lua.LState) int {
+func (builder *LuaSchemaBuilder) Str(L *lua.LState) int {
 	var column = ColumnNew(String).SetArgs(core.GetArgs(L))
 	L.Push(column.LuaObject(L))
 	return 1
@@ -157,15 +159,25 @@ func (builder *LuaSchemaBuilder) Char(L *lua.LState) int {
 }
 
 func (builder *LuaSchemaBuilder) Pk(L *lua.LState) int {
-	var column = ColumnNew(Integer).SetArgs(core.GetArgs(L))
-	//@todo
+	var column = ColumnNew(Pk).SetArgs(core.GetArgs(L))
 	L.Push(column.LuaObject(L))
 	return 1
 }
 
 func (builder *LuaSchemaBuilder) BigPk(L *lua.LState) int {
-	var column = ColumnNew(BigInteger).SetArgs(core.GetArgs(L))
-	//@todo
+	var column = ColumnNew(BigPk).SetArgs(core.GetArgs(L))
+	L.Push(column.LuaObject(L))
+	return 1
+}
+
+func (builder *LuaSchemaBuilder) UBigPk(L *lua.LState) int {
+	var column = ColumnNew(UBigPk).SetArgs(core.GetArgs(L))
+	L.Push(column.LuaObject(L))
+	return 1
+}
+
+func (builder *LuaSchemaBuilder) UPk(L *lua.LState) int {
+	var column = ColumnNew(UPk).SetArgs(core.GetArgs(L))
 	L.Push(column.LuaObject(L))
 	return 1
 }
@@ -178,7 +190,7 @@ func (builder *LuaSchemaBuilder) DateTime(L *lua.LState) int {
 
 func (builder *LuaSchemaBuilder) Comment(L *lua.LState) int {
 	var (
-		code = `comment("%s")`
+		code = `COMMENT("%s")`
 		args = core.GetArgs(L)
 		str  = args.GetString(0)
 	)
@@ -188,50 +200,6 @@ func (builder *LuaSchemaBuilder) Comment(L *lua.LState) int {
 		L.Push(lua.LString(fmt.Sprintf(code, str)))
 	}
 	return 1
-}
-
-func (builder *LuaSchemaBuilder) CreateTable(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) AddColumn(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) RenameColumn(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) AlterColumnComment(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) AlterColumn(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) CreateIndex(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) ConnDefault(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) DropTable(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) DropIndex(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) DropColumn(L *lua.LState) int {
-	return 0
-}
-
-func (builder *LuaSchemaBuilder) BatchInsert(L *lua.LState) int {
-	return 0
 }
 
 func (builder *LuaSchemaBuilder) SmallInt(L *lua.LState) int {
@@ -274,4 +242,49 @@ func (builder *LuaSchemaBuilder) Binary(L *lua.LState) int {
 	var column = ColumnNew(Binary).SetArgs(core.GetArgs(L))
 	L.Push(column.LuaObject(L))
 	return 1
+}
+
+
+func (builder *LuaSchemaBuilder) CreateTable(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) AddColumn(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) RenameColumn(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) AlterColumnComment(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) AlterColumn(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) CreateIndex(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) DropTable(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) DropIndex(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) DropColumn(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) BatchInsert(L *lua.LState) int {
+		return 0
+}
+
+func (builder *LuaSchemaBuilder) String() string {
+		return ``
 }

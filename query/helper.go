@@ -2,10 +2,12 @@ package query
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 type (
@@ -28,10 +30,12 @@ type (
 	}
 
 	arrayAbleImpl struct {
-		body  interface{}
-		array []string
-		pairs []KV
-		isStr bool
+		body   interface{}
+		pairs  []KV
+		array  []string
+		isStr  bool
+		err    error
+		parsed *sync.Once
 	}
 
 	KvPairs struct {
@@ -270,18 +274,18 @@ func (arr *arrayAbleImpl) parse() error {
 	case string:
 		var str = arr.body.(string)
 		arr.isStr = true
-		arr.array = arr.strSplit(str)
+		arr.array, arr.pairs = arr.strSplit(str)
 		return nil
 	case *string:
 		var str = arr.body.(*string)
 		arr.isStr = true
-		arr.array = arr.strSplit(*str)
+		arr.array, arr.pairs = arr.strSplit(*str)
 		return nil
 	case fmt.Stringer:
-		arr.array = arr.strSplit(arr.body.(fmt.Stringer).String())
+		arr.array, arr.pairs = arr.strSplit(arr.body.(fmt.Stringer).String())
 		return nil
 	case fmt.GoStringer:
-		arr.array = arr.strSplit(arr.body.(fmt.GoStringer).GoString())
+		arr.array, arr.pairs = arr.strSplit(arr.body.(fmt.GoStringer).GoString())
 		return nil
 	case []string:
 		var strArr = arr.body.([]string)
@@ -293,6 +297,8 @@ func (arr *arrayAbleImpl) parse() error {
 			arr.array = append(arr.array, v.String())
 		}
 		return nil
+	case []KV:
+		arr.pairs = arr.body.([]KV)
 	case []fmt.GoStringer:
 		var items = arr.body.([]fmt.GoStringer)
 		for _, v := range items {
@@ -324,6 +330,13 @@ func (arr *arrayAbleImpl) parse() error {
 				arr.array = append(arr.array, it.String())
 				continue
 			}
+			if k == reflect.Map {
+				for _, k := range v.MapKeys() {
+					var value = v.MapIndex(k)
+					arr.pairs = append(arr.pairs, NewKvPairs(NewStringerAny(k), NewStringerAny(value)))
+				}
+				continue
+			}
 			var d = it.Interface()
 			switch d.(type) {
 			case fmt.Stringer:
@@ -349,10 +362,8 @@ func (arr *arrayAbleImpl) Empty() bool {
 	if arr == nil || arr.body == "" || arr.body == nil {
 		return true
 	}
-	if arr.array == nil && arr.pairs == nil {
-		if err := arr.parse(); err != nil {
-			return true
-		}
+	if err := arr.done(); err != nil {
+		return false
 	}
 	if len(arr.array) == 0 && len(arr.pairs) == 0 {
 		return true
@@ -360,29 +371,93 @@ func (arr *arrayAbleImpl) Empty() bool {
 	return false
 }
 
-func (arr *arrayAbleImpl) strSplit(str string) []string {
+func (arr *arrayAbleImpl) done() error {
+	if arr.parsed == nil {
+		arr.parsed = &sync.Once{}
+	}
+	arr.parsed.Do(func() {
+		if err := arr.parse(); err != nil {
+			arr.err = err
+		}
+	})
+	return arr.err
+}
+
+func (arr *arrayAbleImpl) IsPair() bool {
+	if arr == nil || arr.body == nil {
+		return false
+	}
+	if err := arr.done(); err != nil {
+		return false
+	}
+	if len(arr.array) <= 0 && len(arr.pairs) > 0 {
+		return true
+	}
+	return false
+}
+
+func (arr *arrayAbleImpl) IsArray() bool {
+	if arr == nil || arr.body == nil {
+		return false
+	}
+	if err := arr.done(); err != nil {
+		return false
+	}
+	if len(arr.array) > 0 && len(arr.pairs) <= 0 {
+		return true
+	}
+	return false
+}
+
+func (arr *arrayAbleImpl) IsMix() bool {
+	if err := arr.done(); err != nil {
+		return false
+	}
+	if len(arr.array) > 0 && len(arr.pairs) > 0 {
+		return true
+	}
+	return false
+}
+
+func (arr *arrayAbleImpl) strSplit(str string) ([]string, []KV) {
+	if json.Valid([]byte(str)) {
+		var isPairs = strings.HasPrefix(str, `[`) && strings.HasSuffix(str, `]`) &&
+			strings.Contains(str, `{`) && strings.Contains(str, `}`)
+		if isPairs {
+			var (
+				arrPairs []KV
+				tmpMap   = new([]map[string]interface{})
+			)
+			if err := json.Unmarshal([]byte(str), tmpMap); err == nil {
+				for _, it := range *tmpMap {
+					for k, v := range it {
+						arrPairs = append(arrPairs, NewKvPairs(NewString(k), NewStringerT(v)))
+					}
+				}
+				return nil, arrPairs
+			}
+		}
+	}
 	// 剔除 []
 	if strings.HasPrefix(str, `[`) && strings.HasSuffix(str, `]`) {
 		str = strings.TrimSuffix(strings.TrimPrefix(str, `[`), `]`)
 	}
 	if items := RegexpSplit(`/\s*,\s*/`, str, -1, RegexpSplitNoEmpty); items.Len() > 0 {
-		return items
+		return items, nil
 	}
 	if strings.HasPrefix(str, "(") {
 		if strings.HasSuffix(str, ")") && strings.Contains(str, `,`) {
 			str = strings.TrimSuffix(strings.TrimPrefix(str, `(`), `)`)
-			return strings.Split(str, ",")
+			return strings.Split(str, ","), nil
 		}
-		return []string{str}
+		return []string{str}, nil
 	}
-	return strings.Split(str, ",")
+	return strings.Split(str, ","), nil
 }
 
 func (arr *arrayAbleImpl) String() string {
-	if arr.array == nil && arr.pairs == nil {
-		if err := arr.parse(); err != nil {
-			return ""
-		}
+	if err := arr.done(); err != nil {
+		return ""
 	}
 	if arr.pairs != nil {
 		var (
@@ -413,10 +488,8 @@ func (arr *arrayAbleImpl) String() string {
 }
 
 func (arr *arrayAbleImpl) Array() []string {
-	if arr.pairs == nil && arr.array == nil {
-		if err := arr.parse(); err != nil {
-			return nil
-		}
+	if err := arr.done(); err != nil {
+		return nil
 	}
 	if arr.pairs != nil {
 		var items []string
@@ -429,10 +502,8 @@ func (arr *arrayAbleImpl) Array() []string {
 }
 
 func (arr *arrayAbleImpl) Kvs() []KV {
-	if arr.pairs == nil && arr.array == nil {
-		if err := arr.parse(); err != nil {
-			return nil
-		}
+	if err := arr.done(); err != nil {
+		return nil
 	}
 	if arr.pairs != nil {
 		return arr.pairs
